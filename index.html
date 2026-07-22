@@ -1,150 +1,299 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PS7 Job Automation System - Student Portal</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <title>Job Automation AI — Intelligence Engine</title>
+    <!-- Tailwind CSS with Dark Mode -->
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .glow-effect {
+            box-shadow: 0 0 50px -10px rgba(99, 102, 241, 0.15);
+        }
+    </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen p-6 md:p-10 font-sans">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col items-center justify-start selection:bg-indigo-500 selection:text-white p-4 sm:p-8 relative overflow-x-hidden">
 
-    <div class="max-w-6xl mx-auto space-y-8">
+    <!-- Background Glow Blobs -->
+    <div class="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-indigo-600/10 blur-[120px] rounded-full pointer-events-none"></div>
+
+    <!-- App Container -->
+    <div class="w-full max-w-4xl relative z-10">
         
         <!-- Header -->
-        <header class="text-center space-y-3">
-            <div class="inline-flex items-center space-x-2 bg-indigo-500/10 border border-indigo-500/30 px-4 py-1.5 rounded-full text-indigo-400 text-sm font-semibold">
-                <span>🎓 PS7: Production Multi-Agent Job Automation Engine</span>
+        <header class="flex justify-between items-center mb-8 bg-slate-900/60 backdrop-blur-xl px-6 py-4 rounded-2xl border border-slate-800/80 sticky top-4 shadow-2xl">
+            <div class="flex items-center gap-3">
+                <div class="h-10 w-10 bg-gradient-to-tr from-indigo-600 to-violet-500 rounded-xl flex items-center justify-center text-white font-black text-lg shadow-lg shadow-indigo-500/30">⚡</div>
+                <div>
+                    <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white">JobAutomation.<span class="text-indigo-400">ai</span></h1>
+                    <p class="text-[10px] uppercase tracking-wider text-slate-400 font-bold">Multi-Agent Pipeline Active</p>
+                </div>
             </div>
-            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
-                Student Job Portal & Match Ranking
-            </h1>
-            <p class="text-slate-400 max-w-2xl mx-auto">Upload your resume to trigger 4 autonomous agents that scan fresher jobs, classify domains, categorize your track, and rank top matching positions.</p>
+            <div id="user-info" class="hidden flex items-center gap-4">
+                <div class="hidden sm:flex items-center gap-2 bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-slate-700/60">
+                    <span class="h-2 w-2 rounded-full bg-emerald-400 animate-ping"></span>
+                    <span id="user-email-display" class="text-xs font-semibold text-slate-300"></span>
+                </div>
+                <button onclick="logout()" class="bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 hover:text-rose-300 px-3.5 py-1.5 rounded-xl text-xs font-bold transition border border-rose-500/20">Logout</button>
+            </div>
         </header>
 
-        <!-- Upload Form -->
-        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl max-w-2xl mx-auto space-y-6">
-            <label class="block text-sm font-bold text-slate-300">Upload Student Resume (PDF)</label>
-            <div class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 text-center bg-slate-950/50 transition cursor-pointer relative">
-                <input type="file" id="resumeFile" accept=".pdf,.txt" class="absolute inset-0 opacity-0 cursor-pointer" onchange="document.getElementById('fileName').innerText = 'Selected: ' + this.files[0].name">
-                <div class="space-y-3">
-                    <div class="text-4xl">📄</div>
-                    <div id="fileName" class="text-indigo-400 font-medium text-sm">Click or Drag & Drop PDF Resume here</div>
-                    <p class="text-xs text-slate-500">Supports .PDF files</p>
-                </div>
+        <!-- ================= AUTH SCREEN ================= -->
+        <div id="auth-screen" class="max-w-md mx-auto bg-slate-900/80 backdrop-blur-2xl p-8 rounded-3xl shadow-2xl border border-slate-800/80 glow-effect mt-12">
+            <div class="text-center mb-8">
+                <h2 class="text-2xl font-black text-white tracking-tight">Welcome to the Future</h2>
+                <p class="text-xs text-slate-400 mt-1.5">Authenticate to interface with autonomous matching agents</p>
             </div>
 
-            <button onclick="processStudentPortal()" id="submitBtn" 
-                class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl transition duration-200 shadow-lg text-lg flex items-center justify-center space-x-2">
-                <span>🚀 Login & Run 4-Agent Pipeline</span>
-            </button>
-        </div>
-
-        <!-- Loader -->
-        <div id="loader" class="hidden bg-slate-900/90 border border-indigo-500/30 p-6 rounded-2xl space-y-4 max-w-3xl mx-auto">
-            <div class="flex items-center space-x-3 text-indigo-400 font-bold">
-                <div class="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent"></div>
-                <span>Executing PS7 4-Agent Workflow...</span>
+            <div class="flex bg-slate-950 p-1.5 rounded-2xl mb-6 border border-slate-800/60">
+                <button id="tab-login" onclick="switchTab('login')" class="flex-1 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-md transition">Login</button>
+                <button id="tab-signup" onclick="switchTab('signup')" class="flex-1 py-2.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition">Sign Up</button>
             </div>
-            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
-                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">1️⃣ Web Scraper Agent</div>
-                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">2️⃣ Job Classifier Agent</div>
-                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">3️⃣ Resume Classifier Agent</div>
-                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">4️⃣ Match & Rank Engine</div>
-            </div>
-        </div>
 
-        <!-- Student Profile & Ranked Jobs Output -->
-        <div id="results" class="hidden space-y-8">
-            
-            <!-- Student Classification Header -->
-            <div class="bg-indigo-950/40 border border-indigo-500/30 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div id="auth-error" class="hidden mb-4 p-3.5 bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs font-medium rounded-xl"></div>
+
+            <form id="auth-form" onsubmit="handleAuth(event)" class="space-y-4">
                 <div>
-                    <span class="text-xs text-indigo-400 uppercase font-bold tracking-wider">Agent 3 Classification Output</span>
-                    <h2 id="studentTrack" class="text-2xl font-extrabold text-white">Student Track: -</h2>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Work Email</label>
+                    <input type="email" id="email" required placeholder="developer@example.com" class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-sm transition">
                 </div>
-                <div class="flex flex-wrap gap-2" id="studentSkills"></div>
+                <div>
+                    <label class="block text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">Password</label>
+                    <input type="password" id="password" required placeholder="••••••••" class="w-full px-4 py-3 rounded-xl bg-slate-950 border border-slate-800 text-slate-200 placeholder-slate-600 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 focus:outline-none text-sm transition">
+                </div>
+                <!-- Updated button to include span for dynamic spinner handling -->
+                <button type="submit" id="auth-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/25 text-sm mt-2 flex items-center justify-center">
+                    <span id="auth-btn-text">Access Dashboard</span>
+                </button>
+            </form>
+        </div>
+
+        <!-- ================= DASHBOARD SCREEN ================= -->
+        <div id="dashboard-screen" class="hidden space-y-6">
+            
+            <!-- Upload Box -->
+            <div class="bg-slate-900/80 backdrop-blur-2xl p-6 sm:p-8 rounded-3xl shadow-2xl border border-slate-800/80">
+                <div class="mb-5">
+                    <h2 class="text-lg font-black text-white tracking-tight">Upload Resume Payload</h2>
+                    <p class="text-xs text-slate-400">Ingest PDF or TXT resume data to trigger LangGraph analysis and matching.</p>
+                </div>
+
+                <form id="upload-form" onsubmit="uploadResume(event)" class="space-y-4">
+                    <label class="flex flex-col items-center justify-center border-2 border-dashed border-slate-800 rounded-2xl p-8 text-center hover:border-indigo-500/50 hover:bg-indigo-500/5 transition cursor-pointer group">
+                        <div class="h-14 w-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 text-xl mb-3 group-hover:scale-110 transition shadow-lg">📁</div>
+                        <span id="file-label-text" class="text-sm font-bold text-slate-200">Drop your resume file here, or browse</span>
+                        <span class="text-xs text-slate-500 mt-1">Supports PDF and TXT extensions</span>
+                        <input type="file" id="resume-file" accept=".pdf,.txt" required onchange="updateFileName(this)" class="hidden">
+                    </label>
+                    <button type="submit" id="upload-btn" class="w-full bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-bold py-3.5 rounded-xl transition shadow-lg shadow-indigo-600/25 text-sm">Initialize AI Extraction Pipeline</button>
+                </form>
             </div>
 
-            <!-- Job Feed -->
-            <div class="space-y-4">
-                <h3 class="text-xl font-bold text-slate-200 flex items-center space-x-2">
-                    <span>🔥</span> <span>Top Scraped Jobs Ranked by Match Score</span>
-                </h3>
+            <!-- Loading Indicator -->
+            <div id="loading-spinner" class="hidden text-center py-20 bg-slate-900/80 backdrop-blur-2xl rounded-3xl shadow-2xl border border-slate-800/80">
+                <div class="inline-block animate-spin rounded-full h-10 w-10 border-4 border-indigo-500 border-t-transparent mb-4 shadow-lg shadow-indigo-500/50"></div>
+                <h3 class="text-sm font-bold text-white tracking-wide">Autonomous Agents Processing...</h3>
+                <p class="text-xs text-slate-400 mt-1">Scraping jobs, classifying track vectors, and computing match percentages via LLM.</p>
+            </div>
 
-                <div id="jobList" class="space-y-4"></div>
+            <!-- Results Section -->
+            <div id="results-section" class="hidden space-y-6">
+                <!-- Track & Skills Overview Card -->
+                <div class="bg-gradient-to-r from-indigo-950 via-slate-900 to-violet-950 p-6 sm:p-8 rounded-3xl shadow-2xl border border-indigo-500/20 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+                    <div>
+                        <span class="text-[10px] uppercase font-extrabold tracking-widest text-indigo-400 bg-indigo-500/10 px-3 py-1 rounded-full border border-indigo-500/20">Classified Track</span>
+                        <h3 id="res-track" class="text-2xl font-black mt-3 text-white tracking-tight"></h3>
+                    </div>
+                    <div>
+                        <span class="text-[10px] uppercase font-extrabold tracking-widest text-violet-400">Extracted Skills Vector</span>
+                        <div id="res-skills" class="flex gap-2 mt-3 flex-wrap"></div>
+                    </div>
+                </div>
+
+                <div>
+                    <h3 class="text-sm font-extrabold text-slate-300 uppercase tracking-wider px-1 mb-4">Ranked Enterprise Matches</h3>
+                    <div id="jobs-container" class="grid gap-4">
+                        <!-- Dynamic Job Cards inserted here -->
+                    </div>
+                </div>
             </div>
 
         </div>
 
     </div>
 
+    <!-- JavaScript Logic -->
     <script>
-        async function processStudentPortal() {
-            const fileInput = document.getElementById('resumeFile');
-            if (!fileInput.files[0]) {
-                alert('Please upload a PDF resume!');
-                return;
+        const API_URL = "http://127.0.0.1:8000";
+        let currentMode = "login";
+
+        window.onload = function() {
+            const userId = localStorage.getItem("user_id");
+            const email = localStorage.getItem("user_email");
+            if (userId) {
+                showDashboard(email);
             }
+        };
 
-            const formData = new FormData();
-            formData.append('resume_file', fileInput.files[0]);
+        function switchTab(mode) {
+            currentMode = mode;
+            const loginBtn = document.getElementById("tab-login");
+            const signupBtn = document.getElementById("tab-signup");
+            const btnText = document.getElementById("auth-btn-text");
+            const errorDiv = document.getElementById("auth-error");
+            errorDiv.classList.add("hidden");
 
-            document.getElementById('loader').classList.remove('hidden');
-            document.getElementById('results').classList.add('hidden');
-            const btn = document.getElementById('submitBtn');
-            btn.disabled = true;
+            if (mode === "login") {
+                loginBtn.className = "flex-1 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-md transition";
+                signupBtn.className = "flex-1 py-2.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition";
+                btnText.innerText = "Access Dashboard";
+            } else {
+                signupBtn.className = "flex-1 py-2.5 text-xs font-bold rounded-xl bg-indigo-600 text-white shadow-md transition";
+                loginBtn.className = "flex-1 py-2.5 text-xs font-semibold rounded-xl text-slate-400 hover:text-white transition";
+                btnText.innerText = "Initialize Account";
+            }
+        }
+
+        async function handleAuth(event) {
+            event.preventDefault();
+            const email = document.getElementById("email").value;
+            const password = document.getElementById("password").value;
+            const errorDiv = document.getElementById("auth-error");
+            errorDiv.classList.add("hidden");
+
+            const submitBtn = document.getElementById("auth-btn");
+            const btnText = document.getElementById("auth-btn-text");
+
+            // Enter loading state
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+            btnText.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-2 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Authenticating...
+            `;
+
+            const endpoint = currentMode === "login" ? "/api/login" : "/api/signup";
 
             try {
-                const response = await fetch('http://127.0.0.1:8000/api/ps7-process-student', {
-                    method: 'POST',
-                    body: formData
+                const response = await fetch(`${API_URL}${endpoint}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email, password })
                 });
-
                 const data = await response.json();
 
-                if (response.ok) {
-                    // Display Student Profile
-                    document.getElementById('studentTrack').innerText = "Student Track: " + data.student_track;
-                    
-                    const skillsContainer = document.getElementById('studentSkills');
-                    skillsContainer.innerHTML = data.student_skills.map(skill => 
-                        `<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-semibold">${skill}</span>`
-                    ).join('');
+                if (!response.ok) throw new Error(data.detail || "Authentication failed");
 
-                    // Render Ranked Jobs
-                    const jobList = document.getElementById('jobList');
-                    jobList.innerHTML = data.ranked_jobs.map((job, index) => `
-                        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl hover:border-indigo-500/40 transition space-y-3">
-                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
-                                <div>
-                                    <div class="flex items-center space-x-3">
-                                        <span class="text-lg font-bold text-indigo-400">#${index + 1}</span>
-                                        <h4 class="text-xl font-bold text-white">${job.title}</h4>
-                                    </div>
-                                    <p class="text-sm text-slate-400">${job.company} • ${job.location}</p>
-                                </div>
-                                <div class="flex items-center space-x-3">
-                                    <span class="bg-purple-500/20 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold">${job.domain}</span>
-                                    <span class="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-4 py-1.5 rounded-xl text-lg font-extrabold">${job.match_score}% Match</span>
-                                </div>
-                            </div>
-                            <p class="text-sm text-slate-300 bg-slate-950 p-4 rounded-xl border border-slate-800/80">${job.description}</p>
-                            <div class="text-xs text-indigo-300 bg-indigo-950/30 p-3 rounded-lg border border-indigo-900/50">
-                                <strong>Agent Match Rationale:</strong> ${job.reason}
-                            </div>
-                        </div>
-                    `).join('');
-
-                    document.getElementById('results').classList.remove('hidden');
-                } else {
-                    alert('Error: ' + (data.detail || 'Failed to process student portal.'));
-                }
+                localStorage.setItem("user_id", data.user_id);
+                localStorage.setItem("user_email", email);
+                showDashboard(email);
             } catch (err) {
-                alert('Could not connect to backend server. Make sure app.py is running!');
-            } finally {
-                document.getElementById('loader').classList.add('hidden');
-                btn.disabled = false;
+                errorDiv.innerText = err.message;
+                errorDiv.classList.remove("hidden");
+                // Reset button state if error occurs
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-75', 'cursor-not-allowed');
+                btnText.innerText = currentMode === "login" ? "Access Dashboard" : "Initialize Account";
             }
+        }
+
+        function showDashboard(email) {
+            document.getElementById("auth-screen").classList.add("hidden");
+            document.getElementById("dashboard-screen").classList.remove("hidden");
+            document.getElementById("user-info").classList.remove("hidden");
+            document.getElementById("user-email-display").innerText = email;
+        }
+
+        function logout() {
+            localStorage.clear();
+            document.getElementById("dashboard-screen").classList.add("hidden");
+            document.getElementById("user-info").classList.add("hidden");
+            document.getElementById("auth-screen").classList.remove("hidden");
+        }
+
+        function updateFileName(input) {
+            const labelText = document.getElementById("file-label-text");
+            if (input.files.length > 0) {
+                labelText.innerText = "Selected Payload: " + input.files[0].name;
+                labelText.className = "text-sm font-bold text-indigo-400";
+            }
+        }
+
+        async function uploadResume(event) {
+            event.preventDefault();
+            const fileInput = document.getElementById("resume-file");
+            const userId = localStorage.getItem("user_id");
+            const spinner = document.getElementById("loading-spinner");
+            const resultsSection = document.getElementById("results-section");
+
+            if (fileInput.files.length === 0) return;
+
+            const formData = new FormData();
+            formData.append("resume_file", fileInput.files[0]);
+
+            spinner.classList.remove("hidden");
+            resultsSection.classList.add("hidden");
+
+            try {
+                const response = await fetch(`${API_URL}/api/ps7-process-student/${userId}`, {
+                    method: "POST",
+                    body: formData
+                });
+                const data = await response.json();
+
+                if (!response.ok) throw new Error(data.detail || "Failed to process resume");
+
+                renderResults(data);
+            } catch (err) {
+                alert("Error: " + err.message);
+            } finally {
+                spinner.classList.add("hidden");
+            }
+        }
+
+        function renderResults(data) {
+            document.getElementById("res-track").innerText = data.student_track;
+            
+            const skillsContainer = document.getElementById("res-skills");
+            skillsContainer.innerHTML = "";
+            data.student_skills.forEach(skill => {
+                const span = document.createElement("span");
+                span.className = "bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-3 py-1 rounded-xl text-xs font-bold";
+                span.innerText = skill;
+                skillsContainer.appendChild(span);
+            });
+
+            const jobsContainer = document.getElementById("jobs-container");
+            jobsContainer.innerHTML = "";
+
+            data.ranked_jobs.forEach(job => {
+                const card = document.createElement("div");
+                card.className = "bg-slate-900/80 backdrop-blur-2xl p-6 rounded-3xl shadow-2xl border border-slate-800/80 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 hover:border-indigo-500/30 transition group";
+                
+                card.innerHTML = `
+                    <div class="space-y-2.5">
+                        <div class="flex items-center gap-2.5">
+                            <span class="text-[10px] font-extrabold uppercase tracking-widest text-indigo-400 bg-indigo-500/10 px-2.5 py-1 rounded-lg border border-indigo-500/20">${job.domain || 'Tech'}</span>
+                            <span class="text-xs font-semibold text-slate-400">📍 ${job.location}</span>
+                        </div>
+                        <h4 class="text-base font-extrabold text-white group-hover:text-indigo-400 transition">${job.title}</h4>
+                        <p class="text-xs font-medium text-slate-400">Company: <span class="text-slate-200 font-bold">${job.company}</span></p>
+                        <p class="text-xs text-slate-400 bg-slate-950 p-3 rounded-2xl border border-slate-800/60 leading-relaxed">💡 <span class="italic text-slate-300">${job.reason}</span></p>
+                    </div>
+                    <div class="flex md:flex-col items-center md:items-end justify-between w-full md:w-auto border-t md:border-t-0 pt-4 md:pt-0 border-slate-800 gap-1 min-w-[110px]">
+                        <span class="text-2xl font-black text-emerald-400 tracking-tight">${job.match_score}%</span>
+                        <span class="text-[10px] font-extrabold uppercase tracking-wider text-slate-500">Match Confidence</span>
+                    </div>
+                `;
+                jobsContainer.appendChild(card);
+            });
+
+            document.getElementById("results-section").classList.remove("hidden");
         }
     </script>
 </body>
