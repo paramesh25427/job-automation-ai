@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PS7 Job Automation System - Student Portal</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen p-6 md:p-10 font-sans">
+
+    <div class="max-w-6xl mx-auto space-y-8">
+        
+        <!-- Header -->
+        <header class="text-center space-y-3">
+            <div class="inline-flex items-center space-x-2 bg-indigo-500/10 border border-indigo-500/30 px-4 py-1.5 rounded-full text-indigo-400 text-sm font-semibold">
+                <span>🎓 PS7: Production Multi-Agent Job Automation Engine</span>
+            </div>
+            <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">
+                Student Job Portal & Match Ranking
+            </h1>
+            <p class="text-slate-400 max-w-2xl mx-auto">Upload your resume to trigger 4 autonomous agents that scan fresher jobs, classify domains, categorize your track, and rank top matching positions.</p>
+        </header>
+
+        <!-- Upload Form -->
+        <div class="bg-slate-900 p-8 rounded-3xl border border-slate-800 shadow-2xl max-w-2xl mx-auto space-y-6">
+            <label class="block text-sm font-bold text-slate-300">Upload Student Resume (PDF)</label>
+            <div class="border-2 border-dashed border-slate-700 hover:border-indigo-500 rounded-2xl p-8 text-center bg-slate-950/50 transition cursor-pointer relative">
+                <input type="file" id="resumeFile" accept=".pdf,.txt" class="absolute inset-0 opacity-0 cursor-pointer" onchange="document.getElementById('fileName').innerText = 'Selected: ' + this.files[0].name">
+                <div class="space-y-3">
+                    <div class="text-4xl">📄</div>
+                    <div id="fileName" class="text-indigo-400 font-medium text-sm">Click or Drag & Drop PDF Resume here</div>
+                    <p class="text-xs text-slate-500">Supports .PDF files</p>
+                </div>
+            </div>
+
+            <button onclick="processStudentPortal()" id="submitBtn" 
+                class="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold py-4 rounded-xl transition duration-200 shadow-lg text-lg flex items-center justify-center space-x-2">
+                <span>🚀 Login & Run 4-Agent Pipeline</span>
+            </button>
+        </div>
+
+        <!-- Loader -->
+        <div id="loader" class="hidden bg-slate-900/90 border border-indigo-500/30 p-6 rounded-2xl space-y-4 max-w-3xl mx-auto">
+            <div class="flex items-center space-x-3 text-indigo-400 font-bold">
+                <div class="animate-spin rounded-full h-5 w-5 border-2 border-indigo-400 border-t-transparent"></div>
+                <span>Executing PS7 4-Agent Workflow...</span>
+            </div>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs font-mono">
+                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">1️⃣ Web Scraper Agent</div>
+                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">2️⃣ Job Classifier Agent</div>
+                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">3️⃣ Resume Classifier Agent</div>
+                <div class="bg-slate-950 p-2.5 rounded border border-slate-800 text-slate-400">4️⃣ Match & Rank Engine</div>
+            </div>
+        </div>
+
+        <!-- Student Profile & Ranked Jobs Output -->
+        <div id="results" class="hidden space-y-8">
+            
+            <!-- Student Classification Header -->
+            <div class="bg-indigo-950/40 border border-indigo-500/30 p-6 rounded-2xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <span class="text-xs text-indigo-400 uppercase font-bold tracking-wider">Agent 3 Classification Output</span>
+                    <h2 id="studentTrack" class="text-2xl font-extrabold text-white">Student Track: -</h2>
+                </div>
+                <div class="flex flex-wrap gap-2" id="studentSkills"></div>
+            </div>
+
+            <!-- Job Feed -->
+            <div class="space-y-4">
+                <h3 class="text-xl font-bold text-slate-200 flex items-center space-x-2">
+                    <span>🔥</span> <span>Top Scraped Jobs Ranked by Match Score</span>
+                </h3>
+
+                <div id="jobList" class="space-y-4"></div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <script>
+        async function processStudentPortal() {
+            const fileInput = document.getElementById('resumeFile');
+            if (!fileInput.files[0]) {
+                alert('Please upload a PDF resume!');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('resume_file', fileInput.files[0]);
+
+            document.getElementById('loader').classList.remove('hidden');
+            document.getElementById('results').classList.add('hidden');
+            const btn = document.getElementById('submitBtn');
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/ps7-process-student', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Display Student Profile
+                    document.getElementById('studentTrack').innerText = "Student Track: " + data.student_track;
+                    
+                    const skillsContainer = document.getElementById('studentSkills');
+                    skillsContainer.innerHTML = data.student_skills.map(skill => 
+                        `<span class="bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-semibold">${skill}</span>`
+                    ).join('');
+
+                    // Render Ranked Jobs
+                    const jobList = document.getElementById('jobList');
+                    jobList.innerHTML = data.ranked_jobs.map((job, index) => `
+                        <div class="bg-slate-900 border border-slate-800 p-6 rounded-2xl hover:border-indigo-500/40 transition space-y-3">
+                            <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-2">
+                                <div>
+                                    <div class="flex items-center space-x-3">
+                                        <span class="text-lg font-bold text-indigo-400">#${index + 1}</span>
+                                        <h4 class="text-xl font-bold text-white">${job.title}</h4>
+                                    </div>
+                                    <p class="text-sm text-slate-400">${job.company} • ${job.location}</p>
+                                </div>
+                                <div class="flex items-center space-x-3">
+                                    <span class="bg-purple-500/20 border border-purple-500/30 text-purple-300 px-3 py-1 rounded-full text-xs font-bold">${job.domain}</span>
+                                    <span class="bg-emerald-500/20 border border-emerald-500/30 text-emerald-400 px-4 py-1.5 rounded-xl text-lg font-extrabold">${job.match_score}% Match</span>
+                                </div>
+                            </div>
+                            <p class="text-sm text-slate-300 bg-slate-950 p-4 rounded-xl border border-slate-800/80">${job.description}</p>
+                            <div class="text-xs text-indigo-300 bg-indigo-950/30 p-3 rounded-lg border border-indigo-900/50">
+                                <strong>Agent Match Rationale:</strong> ${job.reason}
+                            </div>
+                        </div>
+                    `).join('');
+
+                    document.getElementById('results').classList.remove('hidden');
+                } else {
+                    alert('Error: ' + (data.detail || 'Failed to process student portal.'));
+                }
+            } catch (err) {
+                alert('Could not connect to backend server. Make sure app.py is running!');
+            } finally {
+                document.getElementById('loader').classList.add('hidden');
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>
