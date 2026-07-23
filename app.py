@@ -2,27 +2,23 @@ import io
 import json
 import os
 import time
+import urllib.parse
 from datetime import datetime
 from typing import List, TypedDict
 
 import bcrypt
+import requests
+from bs4 import BeautifulSoup
+from ddgs import DDGS
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from langchain_groq import ChatGroq
 from langgraph.graph import END, StateGraph
-from PIL import Image
 from pydantic import BaseModel
 from pypdf import PdfReader
 from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, create_engine
 from sqlalchemy.orm import DeclarativeBase, Session, relationship, sessionmaker
-
-# OCR imports
-from pdf2image import convert_from_bytes
-import pytesseract
-
-# OPTIONAL FOR WINDOWS: If Tesseract is not in your System PATH, un-comment and set this line:
-# pytesseract.pytesseract.tesseract_cmd = r'C:\Program Files\Tesseract-OCR\tesseract.exe'
 
 # 1. Load environment variables
 load_dotenv()
@@ -40,12 +36,12 @@ if DATABASE_URL.startswith("postgres://"):
 
 engine = create_engine(
     DATABASE_URL, 
-    pool_pre_ping=True,   # Verifies connection health before executing queries
-    pool_recycle=280,    # Refreshes connections every ~4.5 minutes
-    pool_size=5,         # Maintains 5 idle connections
-    max_overflow=10,     # Allows temporary bursts up to 15 connections
+    pool_pre_ping=True,
+    pool_recycle=280,
+    pool_size=5,
+    max_overflow=10,
     connect_args={
-        "connect_timeout": 10,  # Allows 10s for Neon DB auto-wake
+        "connect_timeout": 10,
         "keepalives": 1,
         "keepalives_idle": 30,
         "keepalives_interval": 10,
@@ -57,7 +53,6 @@ SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 class Base(DeclarativeBase):
     pass
 
-# Python 3.14 Compatible Native Bcrypt Functions
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode('utf-8')
     salt = bcrypt.gensalt()
@@ -119,10 +114,9 @@ if not GROQ_API_KEY:
 llm = ChatGroq(
     groq_api_key=GROQ_API_KEY,
     model="llama-3.3-70b-versatile",
-    temperature=0.3
+    temperature=0.2
 )
 
-# Wrapper function to retry on Groq rate limits (429) automatically
 def safe_llm_invoke(prompt: str, max_retries: int = 3):
     for attempt in range(max_retries):
         try:
@@ -137,123 +131,20 @@ def safe_llm_invoke(prompt: str, max_retries: int = 3):
                 raise e
     return llm.invoke(prompt)
 
-MOCK_SCRAPED_JOBS = [
-    {
-        "id": 1,
-        "title": "Fresher Full Stack Developer (React + FastAPI)",
-        "company": "TechNova Solutions",
-        "location": "Bengaluru (Hybrid)",
-        "description": "Looking for freshers skilled in Python, FastAPI, React, Node.js, and MongoDB. Knowledge of REST APIs and UI components required."
-    },
-    {
-        "id": 2,
-        "title": "Junior Machine Learning / NLP Engineer",
-        "company": "AI Dynamics",
-        "location": "Chennai (Remote)",
-        "description": "Seeking freshers proficient in Python, Scikit-learn, TensorFlow, PyTorch, and NLP text processing. Experience with LLMs and LangChain is a plus."
-    },
-    {
-        "id": 3,
-        "title": "Associate DevOps & Cloud Engineer",
-        "company": "CloudScale Systems",
-        "location": "Hyderabad",
-        "description": "Entry-level position for DevOps. Requirements: Docker, Kubernetes basics, CI/CD pipelines, Linux shell scripting, and AWS fundamentals."
-    },
-    {
-        "id": 4,
-        "title": "Cyber Security Analyst - Trainee",
-        "company": "SecureSphere",
-        "location": "Pune",
-        "description": "Fresher role in Cyber Security. Requires knowledge of network security, penetration testing, OWASP top 10, SIEM tools, and ethical hacking."
-    },
-    {
-        "id": 5,
-        "title": "Associate Salesforce Developer",
-        "company": "CRM Cloud Solutions",
-        "location": "Coimbatore",
-        "description": "Junior Salesforce Developer role. Requirements: Apex programming, Visualforce, Lightning Web Components (LWC), and CRM workflows."
-    }
-]
-
 # =============================================================
-# 3. HELPER: SMART PDF & OCR TEXT EXTRACTION
-# =============================================================
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    resume_text = ""
-    
-    # Step 1: Digital text extraction attempt via pypdf
-    try:
-        reader = PdfReader(io.BytesIO(pdf_bytes))
-        for page in reader.pages:
-            extracted = page.extract_text()
-            if extracted:
-                resume_text += extracted + "\n"
-    except Exception as e:
-        print(f"pypdf extraction notice: {e}")
-
-    # Step 2: Fallback to OCR if pypdf returns empty or minimal text (Photo/Scanned PDF)
-    if len(resume_text.strip()) < 20:
-        print("📸 Photo/Scanned PDF detected! Running Tesseract OCR fallback...")
-        try:
-            images = convert_from_bytes(pdf_bytes)
-            ocr_text = ""
-            for img in images:
-                ocr_text += pytesseract.image_to_string(img) + "\n"
-            if ocr_text.strip():
-                resume_text = ocr_text
-        except Exception as ocr_err:
-            print(f"⚠️ OCR extraction failed: {ocr_err}")
-
-    return resume_text
-
-# =============================================================
-# 4. LANGGRAPH MULTI-AGENT PIPELINE
+# 3. LANGGRAPH MULTI-AGENT PIPELINE
 # =============================================================
 class PS7SystemState(TypedDict):
-    scraped_jobs: List[dict]
-    categorized_jobs: List[dict]
     resume_text: str
     student_track: str
     student_skills: List[str]
+    scraped_jobs: List[dict]
+    categorized_jobs: List[dict]
     ranked_jobs: List[dict]
 
-def agent1_web_scraper(state: PS7SystemState):
-    print("\n🕸️ [Agent 1: Web Scraper] Fetching latest job postings...")
-    return {"scraped_jobs": MOCK_SCRAPED_JOBS}
-
-def agent2_job_classifier(state: PS7SystemState):
-    print("\n🏷️ [Agent 2: Job Domain Classifier] Classifying job domains...")
-    scraped = state["scraped_jobs"]
-    categorized = []
-    
-    for job in scraped:
-        prompt = f"""
-        Categorize this job into EXACTLY ONE domain from [Full Stack, Machine Learning, DevOps, Cyber Security, Salesforce, Software Testing]:
-        TITLE: {job['title']}
-        DESCRIPTION: {job['description']}
-        Return ONLY valid JSON: {{"domain": "Domain Name"}}
-        """
-        response = safe_llm_invoke(prompt)
-        try:
-            content = response.content.strip()
-            if "```json" in content:
-                content = content.split("```json")[1].split("```")[0].strip()
-            elif "```" in content:
-                content = content.split("```")[1].split("```")[0].strip()
-            parsed = json.loads(content)
-            domain = parsed.get("domain", "General Engineering")
-        except Exception:
-            domain = "General Engineering"
-
-        job_copy = job.copy()
-        job_copy["domain"] = domain
-        categorized.append(job_copy)
-        print(f"   ↳ Job '{job['title']}' -> [{domain}]")
-        
-    return {"categorized_jobs": categorized}
-
-def agent3_resume_classifier(state: PS7SystemState):
-    print("\n👤 [Agent 3: Resume Classifier] Analyzing student resume track...")
+# AGENT 1: RESUME CLASSIFIER & SKILL EXTRACTION
+def agent1_resume_classifier(state: PS7SystemState):
+    print("\n👤 [Agent 1: Resume Classifier] Analyzing student resume track & skills...")
     prompt = f"""
     Classify this resume into EXACTLY ONE student track:
     [Full Stack Student, ML Student, DevOps Student, Cyber Security Student, Salesforce Student]
@@ -264,7 +155,7 @@ def agent3_resume_classifier(state: PS7SystemState):
     Return JSON strictly in this format:
     {{
         "student_track": "Track Name",
-        "extracted_skills": ["Skill1", "Skill2"]
+        "extracted_skills": ["Skill1", "Skill2", "Skill3"]
     }}
     """
     response = safe_llm_invoke(prompt)
@@ -275,17 +166,166 @@ def agent3_resume_classifier(state: PS7SystemState):
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
         data = json.loads(content)
-        track = data.get("student_track", "Full Stack Student")
+        track = data.get("student_track", "Software Developer")
         skills = data.get("extracted_skills", [])
     except Exception:
-        track = "ML Student"
-        skills = ["Python", "Machine Learning"]
+        track = "Software Developer"
+        skills = ["Python", "JavaScript"]
 
-    print(f"   ↳ Student classified as: [{track}]")
+    print(f"   ↳ Student track: [{track}] | Skills extracted: {skills}")
     return {"student_track": track, "student_skills": skills}
 
+# DYNAMIC FILTER: Rejects non-job page titles
+def is_valid_job_title(title_text: str) -> bool:
+    t = title_text.strip().lower()
+    # Reject generic non-job portal/landing pages
+    generic_words = ["careers", "home", "jobs", "all jobs", "search results", "workday", "job openings"]
+    if t in generic_words or len(t) < 4:
+        return False
+    return True
+
+# AGENT 2: TARGETED DIRECT JOB SCRAPER
+def agent2_web_scraper(state: PS7SystemState):
+    raw_track = state["student_track"]
+    skills = state["student_skills"]
+    
+    clean_track = raw_track.replace("Student", "").strip()
+    top_skill = skills[0] if skills else "Python"
+    
+    queries = [
+        f'"{top_skill}" "Fresher" hiring India site:lever.co OR site:greenhouse.io OR site:workday.com',
+        f'"{clean_track}" "Fresher" "Apply" site:linkedin.com/jobs/view/',
+        f'fresher "{top_skill} developer" job opening India site:naukri.com/job-listings-'
+    ]
+    
+    live_jobs = []
+
+    # Strategy A: DDGS
+    try:
+        for q in queries:
+            if len(live_jobs) >= 5:
+                break
+            print(f"\n🕸️ [Agent 2: Live Web Scraper] Querying web: '{q}'...")
+            results = list(DDGS().text(q, max_results=5))
+            for res in results:
+                href = res.get("href", "")
+                title = res.get("title", "")
+                if href and href.startswith("http") and is_valid_job_title(title) and not any(j["url"] == href for j in live_jobs):
+                    live_jobs.append({
+                        "id": len(live_jobs) + 1,
+                        "raw_title": title,
+                        "raw_snippet": res.get("body", "Live posting found on web.")[:500],
+                        "url": href
+                    })
+        if live_jobs:
+            print(f"   ↳ Retrieved {len(live_jobs)} raw live listings via DDGS!")
+            return {"scraped_jobs": live_jobs}
+    except Exception as e:
+        print(f"   ⚠️ DDGS notice: {e}. Switching to direct HTML web parser...")
+
+    # Strategy B: Fallback HTML Scraper
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+    }
+
+    for q in queries:
+        if len(live_jobs) >= 5:
+            break
+        try:
+            search_url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(q)}"
+            resp = requests.get(search_url, headers=headers, timeout=8)
+            if resp.status_code == 200:
+                soup = BeautifulSoup(resp.text, "html.parser")
+                results = soup.find_all("div", class_="result")
+                for res in results:
+                    title_elem = res.find("a", class_="result__a")
+                    snippet_elem = res.find("a", class_="result__snippet")
+                    if title_elem and title_elem.get("href"):
+                        href = title_elem.get("href")
+                        title_text = title_elem.get_text(strip=True)
+                        if "uddg=" in href:
+                            href = urllib.parse.unquote(href.split("uddg=")[1].split("&")[0])
+                        if href.startswith("http") and is_valid_job_title(title_text) and not any(j["url"] == href for j in live_jobs):
+                            live_jobs.append({
+                                "id": len(live_jobs) + 1,
+                                "raw_title": title_text,
+                                "raw_snippet": snippet_elem.get_text(strip=True) if snippet_elem else "Live job posting found on web.",
+                                "url": href
+                            })
+        except Exception as ex:
+            print(f"   ⚠️ HTML Scraper error: {ex}")
+
+    print(f"   ↳ Total raw live listings found: {len(live_jobs)}")
+    return {"scraped_jobs": live_jobs}
+
+# AGENT 3: DYNAMIC ENTITY EXTRACTION & ACCURATE DOMAIN CLASSIFIER
+def agent3_job_classifier(state: PS7SystemState):
+    print("\n🏷️ [Agent 3: Entity Extractor & Classifier] Extracting Company Names & Job Titles via AI...")
+    scraped = state["scraped_jobs"]
+    categorized = []
+    
+    for job in scraped:
+        prompt = f"""
+        Analyze this raw web search listing and extract/clean the details:
+
+        RAW TITLE: {job['raw_title']}
+        RAW SNIPPET: {job['raw_snippet']}
+        SOURCE URL: {job['url']}
+
+        Instructions:
+        1. "company": Extract the hiring company name. If not found in text, extract domain brand from URL.
+        2. "clean_title": Clean up numbers/noise. MUST BE A VALID SPECIFIC JOB TITLE (e.g., "Software Engineer - Python"). If the raw title is a generic non-job word like "Careers", "Jobs", or "Workday", set "is_generic_page": true.
+        3. "domain": Categorize strictly from [Full Stack, Machine Learning, DevOps, Cyber Security, Salesforce, Software Testing].
+           IMPORTANT DOMAIN RULE: Prioritize the main role in the TITLE. If title says "Software Engineer", "Python Engineer", "Developer", tag as "Full Stack" or "Machine Learning". DO NOT tag as "Software Testing" unless "QA", "Tester", or "Testing" is explicitly written in the TITLE.
+
+        Return JSON strictly:
+        {{
+            "company": "Company Name",
+            "clean_title": "Clean Job Title",
+            "domain": "Domain Name",
+            "is_generic_page": false
+        }}
+        """
+        response = safe_llm_invoke(prompt)
+        try:
+            content = response.content.strip()
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+            parsed = json.loads(content)
+            
+            # Skip if AI detected it's a generic portal page
+            if parsed.get("is_generic_page") is True or not is_valid_job_title(parsed.get("clean_title", "")):
+                print(f"   ⚠️ Filtered out generic portal page: '{job['raw_title']}'")
+                continue
+
+            company = parsed.get("company", "Tech Hiring Partner")
+            clean_title = parsed.get("clean_title", job["raw_title"])
+            domain = parsed.get("domain", "General Engineering")
+        except Exception:
+            if not is_valid_job_title(job["raw_title"]):
+                continue
+            company = "Tech Hiring Partner"
+            clean_title = job["raw_title"]
+            domain = "General Engineering"
+
+        categorized.append({
+            "id": job["id"],
+            "title": clean_title,
+            "company": company,
+            "location": "India (Remote/Onsite)",
+            "description": job["raw_snippet"],
+            "url": job["url"],
+            "domain": domain
+        })
+        print(f"   ↳ Extracted -> Company: [{company}] | Title: [{clean_title[:35]}...] | Domain: [{domain}]")
+        
+    return {"categorized_jobs": categorized}
+
+# AGENT 4: MATCHING ENGINE & RANKER
 def agent4_matching_engine(state: PS7SystemState):
-    print("\n🎯 [Agent 4: Matcher Engine] Scoring and ranking jobs...")
+    print("\n🎯 [Agent 4: Matcher Engine] Scoring candidate against scraped jobs...")
     track = state["student_track"]
     skills = state["student_skills"]
     categorized_jobs = state["categorized_jobs"]
@@ -293,9 +333,10 @@ def agent4_matching_engine(state: PS7SystemState):
     
     for job in categorized_jobs:
         prompt = f"""
-        Score match percentage (0 to 100) between student and job.
+        Score match percentage (0 to 100) between student resume skills and this job posting.
         STUDENT TRACK: {track} | SKILLS: {', '.join(skills)}
-        JOB TITLE: {job['title']} | DESCRIPTION: {job['description']}
+        JOB TITLE: {job['title']} | COMPANY: {job['company']} | DESCRIPTION: {job['description']}
+        
         Return JSON strictly: {{"match_score": 85, "reason": "Reason here"}}
         """
         response = safe_llm_invoke(prompt)
@@ -307,10 +348,10 @@ def agent4_matching_engine(state: PS7SystemState):
                 content = content.split("```")[1].split("```")[0].strip()
             eval_data = json.loads(content)
             score = eval_data.get("match_score", 50)
-            reason = eval_data.get("reason", "Good match.")
+            reason = eval_data.get("reason", "Matches profile requirements.")
         except Exception:
-            score = 75
-            reason = "Matches standard requirements."
+            score = 60
+            reason = "Matches general track skills."
 
         job_result = job.copy()
         job_result["match_score"] = score
@@ -318,35 +359,29 @@ def agent4_matching_engine(state: PS7SystemState):
         ranked_jobs.append(job_result)
 
     ranked_jobs.sort(key=lambda x: x["match_score"], reverse=True)
-    filtered_jobs = [job for job in ranked_jobs if job["match_score"] > 0]
-
-    if not filtered_jobs and ranked_jobs:
-        filtered_jobs = [ranked_jobs[0]]
-
-    print(f"   ↳ Filtered down to {len(filtered_jobs)} relevant matching jobs.")
-    return {"ranked_jobs": filtered_jobs}
+    print(f"   ↳ Ranked {len(ranked_jobs)} matched live jobs.")
+    return {"ranked_jobs": ranked_jobs}
 
 # Build LangGraph workflow
 builder = StateGraph(PS7SystemState)
-builder.add_node("Scraper", agent1_web_scraper)
-builder.add_node("JobClassifier", agent2_job_classifier)
-builder.add_node("ResumeClassifier", agent3_resume_classifier)
+builder.add_node("ResumeClassifier", agent1_resume_classifier)
+builder.add_node("WebScraper", agent2_web_scraper)
+builder.add_node("JobClassifier", agent3_job_classifier)
 builder.add_node("MatchingEngine", agent4_matching_engine)
 
-builder.set_entry_point("Scraper")
-builder.add_edge("Scraper", "JobClassifier")
-builder.add_edge("JobClassifier", "ResumeClassifier")
-builder.add_edge("ResumeClassifier", "MatchingEngine")
+builder.set_entry_point("ResumeClassifier")
+builder.add_edge("ResumeClassifier", "WebScraper")
+builder.add_edge("WebScraper", "JobClassifier")
+builder.add_edge("JobClassifier", "MatchingEngine")
 builder.add_edge("MatchingEngine", END)
 
 ps7_workflow = builder.compile()
 
 # =============================================================
-# 5. FASTAPI SERVER & ENDPOINTS
+# 4. FASTAPI SERVER & ENDPOINTS
 # =============================================================
-app = FastAPI(title="Job Automation AI - Production Cloud Engine")
+app = FastAPI(title="Job Automation AI - Production Engine")
 
-# Production-safe CORS Configuration
 frontend_url = os.getenv("FRONTEND_URL", "*")
 allowed_origins = [frontend_url] if frontend_url != "*" else ["*"]
 
@@ -360,7 +395,7 @@ app.add_middleware(
 
 @app.get("/")
 def read_root():
-    return {"message": "Job Automation API with Groq Cloud & Neon Database online!"}
+    return {"message": "Job Automation API with Live Web Search Engine online!"}
 
 # Signup Endpoint
 @app.post("/api/signup")
@@ -422,9 +457,14 @@ def process_student_with_db(
             raise HTTPException(status_code=404, detail=f"User ID {user_id} not found.")
 
     try:
+        resume_text = ""
         if resume_file.filename.endswith(".pdf"):
             pdf_bytes = resume_file.file.read()
-            resume_text = extract_text_from_pdf(pdf_bytes)
+            reader = PdfReader(io.BytesIO(pdf_bytes))
+            for page in reader.pages:
+                extracted = page.extract_text()
+                if extracted:
+                    resume_text += extracted + "\n"
         else:
             content = resume_file.file.read()
             resume_text = content.decode("utf-8", errors="ignore")
@@ -432,20 +472,27 @@ def process_student_with_db(
         if not resume_text.strip() or len(resume_text.strip()) < 20:
             raise HTTPException(
                 status_code=400, 
-                detail="Could not extract text from file. Please ensure the uploaded file contains readable text or clear scanned image quality."
+                detail="Could not extract text from file. Please ensure you upload a standard, text-selectable PDF or TXT document."
             )
 
         input_data = {
-            "scraped_jobs": [],
-            "categorized_jobs": [],
             "resume_text": resume_text,
             "student_track": "",
             "student_skills": [],
+            "scraped_jobs": [],
+            "categorized_jobs": [],
             "ranked_jobs": []
         }
 
         output = ps7_workflow.invoke(input_data)
-        top_match = output["ranked_jobs"][0] if output["ranked_jobs"] else {"title": "General Role", "match_score": 70}
+        
+        if not output.get("ranked_jobs"):
+            raise HTTPException(
+                status_code=404, 
+                detail="No live job postings could be retrieved from search engines. Please check your internet connection and try again."
+            )
+
+        top_match = output["ranked_jobs"][0]
 
         new_activity = UserActivityDB(
             user_id=db_user.id,
@@ -466,25 +513,6 @@ def process_student_with_db(
         raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
-# Debug Endpoint
-@app.get("/api/debug/data")
-def debug_view_data(db: Session = Depends(get_db)):
-    users = db.query(UserDB).all()
-    activities = db.query(UserActivityDB).all()
-    return {
-        "users": [{"id": u.id, "email": u.email, "created_at": u.created_at} for u in users],
-        "activities": [
-            {
-                "id": a.id, 
-                "user_id": a.user_id, 
-                "student_track": a.student_track, 
-                "top_job_title": a.top_job_title, 
-                "match_score": a.match_score,
-                "timestamp": a.timestamp
-            } for a in activities
-        ]
-    }
 
 if __name__ == "__main__":
     import uvicorn

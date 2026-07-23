@@ -1,24 +1,36 @@
-# Python bytecode and cache
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+# --- Environment Variables & Secrets ---
+.env
+*.env
 
-# Virtual environments
+# --- Python Virtual Environments ---
 venv/
 env/
+.venv/
 ENV/
-.env
-__pycache__/
-*.pyc
 
-# IDE directories
+# --- Python Compiled & Cache Files ---
+__pycache__/
+*.py
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+
+# --- IDE & Editor Specific Files ---
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS temporary files
+# --- Operating System Generated Files ---
 .DS_Store
+.DS_Store?
+._*
 Thumbs.db
+ehthumbs.db
+
+# --- Logs & Temporary Files ---
+*.log
+npm-debug.log*
+tmp/
