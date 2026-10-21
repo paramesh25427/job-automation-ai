@@ -1,16 +1,8 @@
 <div align="center">
 
-<img src="https://capsule-render.vercel.app/api?type=venom&height=220&color=0:7C3AED,50:4F46E5,100:0D1117&text=JobAutomation.ai&fontColor=FFFFFF&fontSize=42&fontAlignY=42&desc=AI-Powered%20Multi-Agent%20Recruitment%20Platform&descSize=15&descAlignY=62&animation=fadeIn" width="100%" alt="JobAutomation.ai purple banner"/>
+<img src="JobAutomation.ai%20Recruitment%20Workflow.png" alt="JobAutomation.ai recruitment workflow" width="100%"/>
 
 ### Find opportunities. Understand your fit. Apply smarter.
-
-An AI-powered recruitment platform designed to streamline fresher job hunting through specialized AI agents, resume analysis, and contextual job matching.
-
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-009688?style=for-the-badge&logo=fastapi&logoColor=white)
-![LangGraph](https://img.shields.io/badge/LangGraph-4B32C3?style=for-the-badge)
-![Ollama](https://img.shields.io/badge/Ollama-111111?style=for-the-badge)
-![PostgreSQL](https://img.shields.io/badge/Neon%20PostgreSQL-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
 
 </div>
 
